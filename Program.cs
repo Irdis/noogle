@@ -40,13 +40,6 @@ public class Program
         {
             return;
         }
-        /*var folder = @"C:\Projects\noodletmp\bin\Debug\net8.0\";*/
-        /*var folder = @"c:\Projects\omnisharp\omnisharp-roslyn\bin\Debug\OmniSharp.Host\net6.0\";*/
-        var folder = @"C:\Projects\ILSpy\ICSharpCode.Decompiler\bin\Debug\netstandard2.0";
-        noogleArgs.Path = folder;
-        noogleArgs.Member = "DirectBaseTypes";
-        /*noogleArgs.PublicOnly = false;*/
-        /*noogleArgs.Type = "PEFile";*/
         ExploreLibraries(noogleArgs);
     }
 
