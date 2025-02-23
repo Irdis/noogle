@@ -33,8 +33,9 @@ public class TypeInfo
 
 public class Program
 {
-    public const string ObjectType = "Object";
-    public const string EnumType = "Enum";
+    private const string ObjectType = "Object";
+    private const string AttributeType = "Attribute";
+    private const string EnumType = "Enum";
 
     public static void Main(string[] args)
     {
@@ -45,7 +46,7 @@ public class Program
         ExploreLibraries(noogleArgs);
     }
 
-    public static void ExploreLibraries(NoogleArgs args)
+    private static void ExploreLibraries(NoogleArgs args)
     {
         var libs = GetLibraries(args);
         if (libs.Count == 0)
@@ -57,7 +58,6 @@ public class Program
             var resolver = new UniversalAssemblyResolver(path, false, peFile.Metadata.DetectTargetFrameworkId());
             var typeSystem = new DecompilerTypeSystem(peFile, resolver);
             var typeInfo = new TypeInfo();
-            var uniqueSignatures = new HashSet<string>();
 
             foreach (var type in typeSystem.MainModule.TypeDefinitions)
             {
@@ -70,10 +70,9 @@ public class Program
                 if (type.FullName.Contains('<'))
                     continue;
 
-                ExploreType(typeInfo, type, args, uniqueSignatures);
+                ExploreType(typeInfo, type, args);
 
                 typeInfo.Clear();
-                uniqueSignatures.Clear();
             }
         }
     }
@@ -81,8 +80,8 @@ public class Program
     private static void ExploreType(
         TypeInfo typeInfo,
         IType targetType, 
-        NoogleArgs args,
-        HashSet<string> uniqueSignatures)
+        NoogleArgs args
+    )
     {
         if (targetType.Kind == TypeKind.Enum)
         {
@@ -90,7 +89,7 @@ public class Program
             return;
         }
         CollectTypeInfo(typeInfo, targetType, args);
-        PrintTypeInfo(targetType, typeInfo, uniqueSignatures);
+        PrintTypeInfo(targetType, typeInfo);
     }
 
     private static void CollectTypeInfo(TypeInfo info, 
@@ -135,7 +134,8 @@ public class Program
         var methods = type.GetMethods();
         methods = methods.Where(m => !m.Name.Contains('<') &&
             m.DeclaringType.Name != ObjectType &&
-            m.DeclaringType.Name != EnumType
+            m.DeclaringType.Name != EnumType &&
+            m.DeclaringType.Name != AttributeType
         );
         if (args.Member != null)
             methods = methods.Where(m => m.Name == args.Member);
@@ -144,7 +144,7 @@ public class Program
         return methods;
     }
 
-    public static bool ParseArgs(string[] args, out NoogleArgs res)
+    private static bool ParseArgs(string[] args, out NoogleArgs res)
     {
         res = new NoogleArgs();
         var ind = 0;
@@ -234,7 +234,7 @@ public class Program
         PrintUsage(tw);
     }
 
-    public static void PrintUsage(TextWriter tw)
+    private static void PrintUsage(TextWriter tw)
     {
         tw.WriteLine("noogle [args]:");
         tw.WriteLine("    -p <path1>:    path");
@@ -260,19 +260,19 @@ public class Program
         }
     }
 
-    private static void PrintTypeInfo(IType type, TypeInfo info, HashSet<string> uniqueSignatures)
+    private static void PrintTypeInfo(IType type, TypeInfo info)
     {
         foreach (var prop in info.Props)
         {
-            PrintProperty(type, prop, uniqueSignatures);
+            PrintProperty(type, prop);
         }
         foreach (var ctor in info.Ctors)
         {
-            PrintMethod(type, ctor, uniqueSignatures);
+            PrintMethod(type, ctor);
         }
         foreach (var method in info.Methods)
         {
-            PrintMethod(type, method, uniqueSignatures);
+            PrintMethod(type, method);
         }
     }
 
@@ -301,8 +301,7 @@ public class Program
 
     private static void PrintProperty(
         IType type,
-        IProperty property,
-        HashSet<string> uniqueSignatures
+        IProperty property
     )
     {
         var returnType = property.ReturnType;
@@ -349,17 +348,12 @@ public class Program
         }
 
         var str = sb.ToString();
-        if (!uniqueSignatures.Contains(str))
-        {
-            uniqueSignatures.Add(str);
-            Console.WriteLine(str);
-        }
+        Console.WriteLine(str);
     }
 
     private static void PrintMethod(
         IType type,
-        IMethod method,
-        HashSet<string> uniqueSignatures
+        IMethod method
     )
     {
         var returnType = method.ReturnType;
@@ -402,11 +396,7 @@ public class Program
         }
         sb.Append(")");
         var str = sb.ToString();
-        if (!uniqueSignatures.Contains(str))
-        {
-            uniqueSignatures.Add(str);
-            Console.WriteLine(str);
-        }
+        Console.WriteLine(str);
     }
 
     private static void PrintType(StringBuilder sb, IType type)
