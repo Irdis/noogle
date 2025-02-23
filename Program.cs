@@ -5,6 +5,8 @@ using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.TypeSystem;
 
+namespace noogle;
+
 public class NoogleArgs
 {
     public string Path { get; set; }
