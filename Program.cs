@@ -1,7 +1,4 @@
 ﻿using System.Text;
-using System.Reflection.PortableExecutable;
-using System.Reflection.Metadata;
-using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.TypeSystem;
 
