@@ -93,14 +93,8 @@ public class Program
         PrintTypeInfo(targetType, typeInfo, uniqueSignatures);
     }
 
-    private static void CollectTypeInfo(TypeInfo info, IType type, NoogleArgs args)
-    {
-        CollectTypeInfo(info, type, 0, args);
-    }
-
     private static void CollectTypeInfo(TypeInfo info, 
         IType currentType, 
-        int lvl, 
         NoogleArgs args)
     {
         if (args.CtorsOnly)
@@ -109,21 +103,9 @@ public class Program
             return;
         }
 
-        if (lvl == 0)
-        {
-            info.Ctors.AddRange(CollectCtors(currentType, args));
-        }
-
+        info.Ctors.AddRange(CollectCtors(currentType, args));
         info.Props.AddRange(CollectProperties(currentType, args));
         info.Methods.AddRange(CollectMethods(currentType, args));
-
-        foreach (var directAncestor in currentType.DirectBaseTypes)
-        {
-            if (directAncestor.Name == ObjectType ||
-                directAncestor.Name == EnumType)
-                return;
-            CollectTypeInfo(info, directAncestor, lvl + 1, args);
-        }
     }
 
     private static IEnumerable<IMethod> CollectCtors(IType type, NoogleArgs args)
@@ -140,7 +122,7 @@ public class Program
 
     private static IEnumerable<IProperty> CollectProperties(IType type, NoogleArgs args)
     {
-        IEnumerable<IProperty> props = type.GetProperties(options: GetMemberOptions.IgnoreInheritedMembers);
+        IEnumerable<IProperty> props = type.GetProperties();
         if (args.Member != null)
             props = props.Where(p => p.Name == args.Member);
         if (args.PublicOnly)
@@ -150,8 +132,11 @@ public class Program
 
     private static IEnumerable<IMethod> CollectMethods(IType type, NoogleArgs args)
     {
-        var methods = type.GetMethods(options: GetMemberOptions.IgnoreInheritedMembers);
-        methods = methods.Where(m => !m.Name.Contains('<'));
+        var methods = type.GetMethods();
+        methods = methods.Where(m => !m.Name.Contains('<') &&
+            m.DeclaringType.Name != ObjectType &&
+            m.DeclaringType.Name != EnumType
+        );
         if (args.Member != null)
             methods = methods.Where(m => m.Name == args.Member);
         if (args.PublicOnly)
