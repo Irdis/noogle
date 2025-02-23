@@ -1,1 +1,1 @@
-Nvim plugin for [Noogle](!https://github.com/Irdis/noogle)
+Tool for searching in .NET libraries
