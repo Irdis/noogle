@@ -15,6 +15,7 @@ public class NoogleArgs
     public string Lib { get; set; }
     public bool CtorsOnly { get; set; }
     public bool PublicOnly { get; set; } = true;
+    public bool IncludeInherited { get; set; }
 }
 
 public class TypeInfo
@@ -113,7 +114,7 @@ public class Program
         {
             return Enumerable.Empty<IMethod>();
         }
-        IEnumerable<IMethod> ctors = type.GetConstructors(options: GetMemberOptions.IgnoreInheritedMembers);
+        IEnumerable<IMethod> ctors = type.GetConstructors();
         if (args.PublicOnly)
             ctors = ctors.Where(c => c.Accessibility == Accessibility.Public);
         return ctors;
@@ -121,7 +122,7 @@ public class Program
 
     private static IEnumerable<IProperty> CollectProperties(IType type, NoogleArgs args)
     {
-        IEnumerable<IProperty> props = type.GetProperties();
+        IEnumerable<IProperty> props = type.GetProperties(options: MemberOptions(args));
         if (args.Member != null)
             props = props.Where(p => p.Name == args.Member);
         if (args.PublicOnly)
@@ -131,7 +132,7 @@ public class Program
 
     private static IEnumerable<IMethod> CollectMethods(IType type, NoogleArgs args)
     {
-        var methods = type.GetMethods();
+        var methods = type.GetMethods(options: MemberOptions(args));
         methods = methods.Where(m => !m.Name.Contains('<') &&
             m.DeclaringType.Name != ObjectType &&
             m.DeclaringType.Name != EnumType &&
@@ -143,6 +144,9 @@ public class Program
             methods = methods.Where(p => p.Accessibility == Accessibility.Public);
         return methods;
     }
+
+    private static GetMemberOptions MemberOptions(NoogleArgs args) =>
+        args.IncludeInherited ? GetMemberOptions.None : GetMemberOptions.IgnoreInheritedMembers;
 
     private static bool ParseArgs(string[] args, out NoogleArgs res)
     {
@@ -184,6 +188,11 @@ public class Program
             {
                 ind++;
                 res.PublicOnly = false;
+            } 
+            else if (arg == "-i")
+            {
+                ind++;
+                res.IncludeInherited = true;
             } 
             else if (arg == "-?")
             {
@@ -243,6 +252,7 @@ public class Program
         tw.WriteLine("    -m <member1>:  member name (method, property, etc.)");
         tw.WriteLine("    -c:            constructors only");
         tw.WriteLine("    -a:            all accessibility (public, private, etc.)");
+        tw.WriteLine("    -i:            include inherited members");
         tw.WriteLine("    -?:            show this message");
     }
 
