@@ -8,4 +8,9 @@
   <ItemGroup>
     <PackageReference Include="ICSharpCode.Decompiler" Version="9.0.0.7889" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update=".noogleignore">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

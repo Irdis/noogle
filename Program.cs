@@ -1,4 +1,6 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
+using System.Reflection;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.TypeSystem;
 
@@ -11,8 +13,19 @@ public class NoogleArgs
     public string Member { get; set; }
     public string Lib { get; set; }
     public bool CtorsOnly { get; set; }
+    public bool Stat { get; set; }
     public bool PublicOnly { get; set; } = true;
     public bool IncludeInherited { get; set; }
+}
+
+public class Stat
+{
+    public int LineCount { get; set; }
+
+    public void Clear()
+    {
+        LineCount = 0;
+    }
 }
 
 public class TypeInfo
@@ -49,45 +62,72 @@ public class Program
         var libs = GetLibraries(args);
         if (libs.Count == 0)
             return;
+        var outStat = new List<(string, int)>();
+        var stat = new Stat();
         foreach (var path in libs)
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-            using var peFile = new PEFile(path, fs);
-            var resolver = new UniversalAssemblyResolver(path, false, peFile.Metadata.DetectTargetFrameworkId());
-            var typeSystem = new DecompilerTypeSystem(peFile, resolver);
-            var typeInfo = new TypeInfo();
-
-            foreach (var type in typeSystem.MainModule.TypeDefinitions)
+            try 
             {
-                if (args.PublicOnly && type.Accessibility != Accessibility.Public)
-                    continue;
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+                using var peFile = new PEFile(path, fs);
+                var resolver = new UniversalAssemblyResolver(path, false, peFile.Metadata.DetectTargetFrameworkId());
+                var typeSystem = new DecompilerTypeSystem(peFile, resolver);
+                var typeInfo = new TypeInfo();
 
-                if (args.Type != null && type.Name != args.Type)
-                    continue;
+                foreach (var type in typeSystem.MainModule.TypeDefinitions)
+                {
+                    if (args.PublicOnly && type.Accessibility != Accessibility.Public)
+                        continue;
 
-                if (type.FullName.Contains('<'))
-                    continue;
+                    if (args.Type != null && type.Name != args.Type)
+                        continue;
 
-                ExploreType(typeInfo, type, args);
+                    if (type.FullName.Contains('<'))
+                        continue;
 
-                typeInfo.Clear();
-            }
+                    ExploreType(typeInfo, type, args, stat);
+
+                    typeInfo.Clear();
+                }
+                if (args.Stat)
+                {
+                    var fileName = Path.GetFileName(path);
+                    outStat.Add((fileName, stat.LineCount));
+                    stat.Clear();
+                }
+            } catch (MetadataFileNotSupportedException){}
+        }
+        if (args.Stat)
+        {
+            PrintStat(outStat);
+        }
+    }
+
+    private static void PrintStat(List<(string, int)> outStat)
+    {
+        foreach (var (lib, count) in outStat.OrderBy(x => x.Item2))
+        {
+            Console.Write(lib);
+            Console.Write(" : ");
+            Console.Write(count);
+            Console.WriteLine();
         }
     }
 
     private static void ExploreType(
         TypeInfo typeInfo,
         IType targetType, 
-        NoogleArgs args
+        NoogleArgs args,
+        Stat stat
     )
     {
         if (targetType.Kind == TypeKind.Enum)
         {
-            PrintEnum(targetType, args);
+            PrintEnum(targetType, args, stat);
             return;
         }
         CollectTypeInfo(typeInfo, targetType, args);
-        PrintTypeInfo(targetType, typeInfo);
+        PrintTypeInfo(targetType, typeInfo, stat);
     }
 
     private static void CollectTypeInfo(TypeInfo info, 
@@ -191,6 +231,11 @@ public class Program
                 ind++;
                 res.IncludeInherited = true;
             } 
+            else if (arg == "-s")
+            {
+                ind++;
+                res.Stat = true;
+            } 
             else if (arg == "-?")
             {
                 PrintUsage(Console.Out);
@@ -222,14 +267,26 @@ public class Program
             }
             return res;
         }
+        var ignoreList = GetIgnoreList();
         foreach (var filePath in Directory.GetFiles(args.Path))
         {
-            if (filePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            var fileName = Path.GetFileName(filePath);
+            if (filePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
+                !ignoreList.IsMatch(fileName))
             {
                 res.Add(filePath);
             } 
         }
         return res;
+    }
+
+    private static Regex GetIgnoreList()
+    {
+        var exePath = Assembly.GetExecutingAssembly().Location;
+        var exeDir = Path.GetDirectoryName(exePath);
+        var ignoreFile = Path.Combine(exeDir, ".noogleignore");
+        var expr = string.Join('|', File.ReadAllLines(ignoreFile).Where(s => !string.IsNullOrEmpty(s)));
+        return new Regex(expr);
     }
 
     private static void PrintInvalidArgs()
@@ -250,10 +307,11 @@ public class Program
         tw.WriteLine("    -c:            constructors only");
         tw.WriteLine("    -a:            all accessibility (public, private, etc.)");
         tw.WriteLine("    -i:            include inherited members");
+        tw.WriteLine("    -s:            print statistics");
         tw.WriteLine("    -?:            show this message");
     }
 
-    private static void PrintEnum(IType type, NoogleArgs args)
+    private static void PrintEnum(IType type, NoogleArgs args, Stat stat)
     {
         if (args.CtorsOnly)
             return;
@@ -264,22 +322,26 @@ public class Program
             if (args.Member != null && field.Name != args.Member)
                 continue;
             PrintEnumField(type, field);
+            stat.LineCount++;
         }
     }
 
-    private static void PrintTypeInfo(IType type, TypeInfo info)
+    private static void PrintTypeInfo(IType type, TypeInfo info, Stat stat)
     {
         foreach (var prop in info.Props)
         {
             PrintProperty(type, prop);
+            stat.LineCount++;
         }
         foreach (var ctor in info.Ctors)
         {
             PrintMethod(type, ctor);
+            stat.LineCount++;
         }
         foreach (var method in info.Methods)
         {
             PrintMethod(type, method);
+            stat.LineCount++;
         }
     }
 
@@ -296,7 +358,7 @@ public class Program
         sb.Append(type.Name);
         sb.Append(".");
         sb.Append(field.Name);
-        var val = field.GetConstantValue();
+        var val = ConstantVal(field.GetConstantValue());
         if (val != null)
         {
             sb.Append(" = ");
@@ -386,14 +448,9 @@ public class Program
             sb.Append(paramInfo.Name);
             if (paramInfo.IsOptional)
             {
-                var val = paramInfo.GetConstantValue();
-                if (val == null)
-                    sb.Append(" = null");
-                else 
-                {
-                    sb.Append(" = ");
-                    sb.Append(val);
-                }
+                var val = ConstantVal(paramInfo.GetConstantValue());
+                sb.Append(" = ");
+                sb.Append(val);
             }
             sb.Append(", ");
         }
@@ -419,6 +476,25 @@ public class Program
         }
         sb.Remove(sb.Length - 2, 2);
         sb.Append(">");
+    }
+
+    private static string ConstantVal(object? val)
+    {
+        if (val == null)
+            return "null";
+        if (val is char)
+        {
+            var ch = (char) val;
+            if (ch == 0)
+                return "'\\0'";
+            if ((char.IsWhiteSpace(ch) && ch != ' ') ||
+                !char.IsAscii(ch))
+                return string.Format("0x{0}", Convert.ToByte(ch).ToString("x2"));
+            else
+                return string.Format("'{0}'", ch);
+        }
+        var str = val.ToString();
+        return str;
     }
 
     private static string Access(Accessibility accessibility) =>
