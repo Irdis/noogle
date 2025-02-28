@@ -282,7 +282,7 @@ public class Program
 
     private static Regex GetIgnoreList()
     {
-        var exePath = Assembly.GetExecutingAssembly().Location;
+        var exePath = AppDomain.CurrentDomain.BaseDirectory;
         var exeDir = Path.GetDirectoryName(exePath);
         var ignoreFile = Path.Combine(exeDir, ".noogleignore");
         var expr = string.Join('|', File.ReadAllLines(ignoreFile).Where(s => !string.IsNullOrEmpty(s)));
