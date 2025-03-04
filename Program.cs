@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 using System.Reflection;
 using ICSharpCode.Decompiler.Metadata;
@@ -21,11 +22,6 @@ public class NoogleArgs
 public class Stat
 {
     public int LineCount { get; set; }
-
-    public void Clear()
-    {
-        LineCount = 0;
-    }
 }
 
 public class TypeInfo
@@ -48,24 +44,22 @@ public class Program
     private const string AttributeType = "Attribute";
     private const string EnumType = "Enum";
 
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         if (!ParseArgs(args, out var noogleArgs))
         {
             return;
         }
-        ExploreLibraries(noogleArgs);
+        await ExploreLibrariesAsync(noogleArgs);
     }
 
-    private static void ExploreLibraries(NoogleArgs args)
+    private static async Task ExploreLibrariesAsync(NoogleArgs args)
     {
         var libs = GetLibraries(args);
         if (libs.Count == 0)
             return;
-        var outStat = new List<(string, int)>();
-        var stat = new Stat();
-        foreach (var path in libs)
-        {
+        var outStat = new ConcurrentBag<(string, int)>();
+        await Task.WhenAll(libs.Select(path => Task.Factory.StartNew(() => {
             try 
             {
                 using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
@@ -73,6 +67,8 @@ public class Program
                 var resolver = new UniversalAssemblyResolver(path, false, peFile.Metadata.DetectTargetFrameworkId());
                 var typeSystem = new DecompilerTypeSystem(peFile, resolver);
                 var typeInfo = new TypeInfo();
+                var stat = new Stat();
+                var outLines = new StringBuilder();
 
                 foreach (var type in typeSystem.MainModule.TypeDefinitions)
                 {
@@ -85,25 +81,26 @@ public class Program
                     if (type.FullName.Contains('<'))
                         continue;
 
-                    ExploreType(typeInfo, type, args, stat);
+                    ExploreType(typeInfo, type, args, stat, outLines);
+                    Console.Write(outLines.ToString());
 
                     typeInfo.Clear();
+                    outLines.Clear();
                 }
                 if (args.Stat)
                 {
                     var fileName = Path.GetFileName(path);
                     outStat.Add((fileName, stat.LineCount));
-                    stat.Clear();
                 }
             } catch (MetadataFileNotSupportedException){}
-        }
+        })));
         if (args.Stat)
         {
             PrintStat(outStat);
         }
     }
 
-    private static void PrintStat(List<(string, int)> outStat)
+    private static void PrintStat(IEnumerable<(string, int)> outStat)
     {
         foreach (var (lib, count) in outStat.OrderBy(x => x.Item2))
         {
@@ -118,16 +115,17 @@ public class Program
         TypeInfo typeInfo,
         IType targetType, 
         NoogleArgs args,
-        Stat stat
+        Stat stat,
+        StringBuilder sb
     )
     {
         if (targetType.Kind == TypeKind.Enum)
         {
-            PrintEnum(targetType, args, stat);
+            PrintEnum(targetType, args, stat, sb);
             return;
         }
         CollectTypeInfo(typeInfo, targetType, args);
-        PrintTypeInfo(targetType, typeInfo, stat);
+        PrintTypeInfo(targetType, typeInfo, stat, sb);
     }
 
     private static void CollectTypeInfo(TypeInfo info, 
@@ -311,7 +309,7 @@ public class Program
         tw.WriteLine("    -?:            show this message");
     }
 
-    private static void PrintEnum(IType type, NoogleArgs args, Stat stat)
+    private static void PrintEnum(IType type, NoogleArgs args, Stat stat, StringBuilder sb)
     {
         if (args.CtorsOnly)
             return;
@@ -321,36 +319,36 @@ public class Program
         {
             if (args.Member != null && field.Name != args.Member)
                 continue;
-            PrintEnumField(type, field);
+            PrintEnumField(type, field, sb);
             stat.LineCount++;
         }
     }
 
-    private static void PrintTypeInfo(IType type, TypeInfo info, Stat stat)
+    private static void PrintTypeInfo(IType type, TypeInfo info, Stat stat, StringBuilder sb)
     {
         foreach (var prop in info.Props)
         {
-            PrintProperty(type, prop);
+            PrintProperty(type, prop, sb);
             stat.LineCount++;
         }
         foreach (var ctor in info.Ctors)
         {
-            PrintMethod(type, ctor);
+            PrintMethod(type, ctor, sb);
             stat.LineCount++;
         }
         foreach (var method in info.Methods)
         {
-            PrintMethod(type, method);
+            PrintMethod(type, method, sb);
             stat.LineCount++;
         }
     }
 
     private static void PrintEnumField(
         IType type,
-        IField field
+        IField field,
+        StringBuilder sb
     ) 
     {
-        var sb = new StringBuilder();
         sb.Append(type.FullName);
         sb.Append(" ");
         sb.Append("enum");
@@ -365,16 +363,16 @@ public class Program
             sb.Append(val);
         }
 
-        Console.WriteLine(sb.ToString());
+        sb.AppendLine();
     }
 
     private static void PrintProperty(
         IType type,
-        IProperty property
+        IProperty property,
+        StringBuilder sb
     )
     {
         var returnType = property.ReturnType;
-        var sb = new StringBuilder();
         sb.Append(type.FullName);
         sb.Append(" ");
         sb.Append(Access(property.Accessibility));
@@ -416,18 +414,17 @@ public class Program
             sb.Append("}");
         }
 
-        var str = sb.ToString();
-        Console.WriteLine(str);
+        sb.AppendLine();
     }
 
     private static void PrintMethod(
         IType type,
-        IMethod method
+        IMethod method,
+        StringBuilder sb
     )
     {
         var returnType = method.ReturnType;
         var parameters = method.Parameters;
-        var sb = new StringBuilder();
         sb.Append(type.FullName);
         sb.Append(" ");
         sb.Append(Access(method.Accessibility));
@@ -459,8 +456,7 @@ public class Program
             sb.Remove(sb.Length - 2, 2);
         }
         sb.Append(")");
-        var str = sb.ToString();
-        Console.WriteLine(str);
+        sb.AppendLine();
     }
 
     private static void PrintType(StringBuilder sb, IType type)
