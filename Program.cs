@@ -59,13 +59,13 @@ public class Program
         if (libs.Count == 0)
             return;
         var outStat = new ConcurrentBag<(string, int)>();
-        await Task.WhenAll(libs.Select(path => Task.Factory.StartNew(async () => {
+        await Task.WhenAll(libs.Select(async path => {
             try 
             {
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+                await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
                 using var peFile = new PEFile(path, fs);
                 var resolver = new UniversalAssemblyResolver(path, false, peFile.Metadata.DetectTargetFrameworkId());
-                var typeSystem = new DecompilerTypeSystem(peFile, resolver);
+                var typeSystem = await DecompilerTypeSystem.CreateAsync(peFile, resolver);
                 var typeInfo = new TypeInfo();
                 var stat = new Stat();
                 var outLines = new StringBuilder();
@@ -93,7 +93,7 @@ public class Program
                     outStat.Add((fileName, stat.LineCount));
                 }
             } catch (MetadataFileNotSupportedException){}
-        })));
+        }));
         if (args.Stat)
         {
             PrintStat(outStat);
