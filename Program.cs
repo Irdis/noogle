@@ -59,7 +59,7 @@ public class Program
         if (libs.Count == 0)
             return;
         var outStat = new ConcurrentBag<(string, int)>();
-        await Task.WhenAll(libs.Select(path => Task.Factory.StartNew(() => {
+        await Task.WhenAll(libs.Select(path => Task.Factory.StartNew(async () => {
             try 
             {
                 using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
@@ -82,7 +82,7 @@ public class Program
                         continue;
 
                     ExploreType(typeInfo, type, args, stat, outLines);
-                    Console.Write(outLines.ToString());
+                    await Console.Out.WriteAsync(outLines);
 
                     typeInfo.Clear();
                     outLines.Clear();
