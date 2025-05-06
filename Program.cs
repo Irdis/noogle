@@ -478,19 +478,27 @@ public class Program
     {
         if (val == null)
             return "null";
+
         if (val is char)
         {
-            var ch = (char) val;
-            if (ch == 0)
-                return "'\\0'";
-            if ((char.IsWhiteSpace(ch) && ch != ' ') ||
-                !char.IsAscii(ch))
-                return string.Format("0x{0}", Convert.ToByte(ch).ToString("x2"));
-            else
-                return string.Format("'{0}'", ch);
+            return string.Format("'{0}'", ToCharLiteral((char)val));
+        } 
+        else if (val is string)
+        {
+            return string.Format("\"{0}\"", ToStringLiteral((string) val));
         }
         var str = val.ToString();
         return str;
+    }
+
+    private static string ToCharLiteral(char valueTextForCompiler)
+    {
+        return Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(valueTextForCompiler, false);
+    }
+
+    private static string ToStringLiteral(string valueTextForCompiler)
+    {
+        return Microsoft.CodeAnalysis.CSharp.SymbolDisplay.FormatLiteral(valueTextForCompiler, false);
     }
 
     private static string Access(Accessibility accessibility) =>
