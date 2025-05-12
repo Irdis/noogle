@@ -7,7 +7,6 @@
 ^EntityFramework.*
 ^GemBox.*
 ^IdentityServer3.*
-^Microsoft.*
 ^NPOI.*
 ^Syncfusion.*
 ^WebGrease.*
