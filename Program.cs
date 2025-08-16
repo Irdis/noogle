@@ -193,7 +193,7 @@ public class Program
             if (arg == "-p" && ind < args.Length - 1)
             {
                 ind++;
-                res.Paths = args[ind].Split(',', StringSplitOptions.None);
+                res.Paths = args[ind].Split(';', StringSplitOptions.None);
                 ind++;
             } 
             else if (arg == "-l" && ind < args.Length - 1)
