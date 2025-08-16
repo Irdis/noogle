@@ -487,6 +487,10 @@ public class Program
         else if (val is string)
         {
             return string.Format("\"{0}\"", ToStringLiteral((string) val));
+        } 
+        else if (val is bool)
+        {
+            return (bool)val ? "true" : "false";
         }
         var str = val.ToString();
         return str;
