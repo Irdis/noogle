@@ -9,7 +9,7 @@ namespace noogle;
 
 public class NoogleArgs
 {
-    public string Path { get; set; }
+    public string[] Paths { get; set; }
     public string Type { get; set; }
     public string Member { get; set; }
     public string Lib { get; set; }
@@ -193,7 +193,7 @@ public class Program
             if (arg == "-p" && ind < args.Length - 1)
             {
                 ind++;
-                res.Path = args[ind];
+                res.Paths = args[ind].Split(',', StringSplitOptions.None);
                 ind++;
             } 
             else if (arg == "-l" && ind < args.Length - 1)
@@ -245,16 +245,17 @@ public class Program
                 return false;
             }
         }
-        res.Path ??= Directory.GetCurrentDirectory();
+        res.Paths ??= [Directory.GetCurrentDirectory()];
         return true;
     }
 
     private static List<string> GetLibraries(NoogleArgs args)
     {
         var res = new List<string>();
+        var files = args.Paths.SelectMany(p => Directory.GetFiles(p));
         if (args.Lib != null)
         {
-            foreach (var filePath in Directory.GetFiles(args.Path))
+            foreach (var filePath in files)
             {
                 var fileName = Path.GetFileName(filePath);
                 if (string.Equals(fileName, args.Lib, StringComparison.OrdinalIgnoreCase))
@@ -266,7 +267,7 @@ public class Program
             return res;
         }
         var ignoreList = GetIgnoreList();
-        foreach (var filePath in Directory.GetFiles(args.Path))
+        foreach (var filePath in files)
         {
             var fileName = Path.GetFileName(filePath);
             if (filePath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) &&
@@ -298,15 +299,15 @@ public class Program
     private static void PrintUsage(TextWriter tw)
     {
         tw.WriteLine("noogle [args]:");
-        tw.WriteLine("    -p <path1>:    path");
-        tw.WriteLine("    -l <library1>: library");
-        tw.WriteLine("    -t <type1>:    type name");
-        tw.WriteLine("    -m <member1>:  member name (method, property, etc.)");
-        tw.WriteLine("    -c:            constructors only");
-        tw.WriteLine("    -a:            all accessibility (public, private, etc.)");
-        tw.WriteLine("    -i:            include inherited members");
-        tw.WriteLine("    -s:            print statistics");
-        tw.WriteLine("    -?:            show this message");
+        tw.WriteLine("    -p <path1,path2 ...>: path(s)");
+        tw.WriteLine("    -l <library1>:        library");
+        tw.WriteLine("    -t <type1>:           type name");
+        tw.WriteLine("    -m <member1>:         member name (method, property, etc.)");
+        tw.WriteLine("    -c:                   constructors only");
+        tw.WriteLine("    -a:                   all accessibility (public, private, etc.)");
+        tw.WriteLine("    -i:                   include inherited members");
+        tw.WriteLine("    -s:                   print statistics");
+        tw.WriteLine("    -?:                   show this message");
     }
 
     private static void PrintEnum(IType type, NoogleArgs args, Stat stat, StringBuilder sb)
