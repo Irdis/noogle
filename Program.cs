@@ -44,6 +44,30 @@ public class Program
     private const string AttributeType = "Attribute";
     private const string EnumType = "Enum";
 
+    private static List<(string, string)> _shortTypes = [
+        ("bool", "Boolean"),
+        ("byte", "Byte"),
+        ("sbyte", "SByte"),
+        ("char", "Char"),
+        ("decimal", "Decimal"),
+        ("double", "Double"),
+        ("float", "Single"),
+        ("int", "Int32"),
+        ("uint", "UInt32"),
+        ("nint", "IntPtr"),
+        ("nuint", "UIntPtr"),
+        ("long", "Int64"),
+        ("ulong", "UInt64"),
+        ("short", "Int16"),
+        ("ushort", "UInt16"),
+        ("object", "Object"),
+        ("string", "String"),
+        ("delegate", "Delegate"),
+        ("dynamic", "Object"),
+    ];
+    private static Dictionary<string, string> _toShortName = _shortTypes.ToDictionary(x => x.Item2, x => x.Item1);
+    private static Dictionary<string, string> _fromShortName = _shortTypes.ToDictionary(x => x.Item1, x => x.Item2);
+
     public static async Task Main(string[] args)
     {
         if (!ParseArgs(args, out var noogleArgs))
@@ -205,7 +229,7 @@ public class Program
             else if (arg == "-t" && ind < args.Length - 1)
             {
                 ind++;
-                res.Type = args[ind];
+                res.Type = LongType(args[ind]);
                 ind++;
             } 
             else if (arg == "-m" && ind < args.Length - 1)
@@ -462,7 +486,7 @@ public class Program
 
     private static void PrintType(StringBuilder sb, IType type)
     {
-        sb.Append(Type(type.Name));
+        sb.Append(ShortType(type.Name));
         if (!type.TypeArguments.Any())
             return;
         sb.Append("<");
@@ -509,14 +533,17 @@ public class Program
     private static string Access(Accessibility accessibility) =>
         accessibility.ToString().ToLower();
 
-    private static string Type(string typeName) =>
-        typeName switch 
-        {
-            "Int32" => "int",
-            "String" => "string",
-            "Boolean" => "bool",
-            "Object" => "object",
-            "Void" => "void",
-            _ => typeName
-        };
+    private static string LongType(string shortName)
+    {
+        if (_fromShortName.TryGetValue(shortName, out var longName))
+            return longName;
+        return shortName;
+    }
+
+    private static string ShortType(string longName)
+    {
+        if (_toShortName.TryGetValue(longName, out var shortName))
+            return shortName;
+        return longName;
+    }
 }
