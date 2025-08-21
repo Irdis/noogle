@@ -63,6 +63,7 @@ public class Program
         ("object", "Object"),
         ("string", "String"),
         ("delegate", "Delegate"),
+        ("void", "Void"),
     ];
     private static Dictionary<string, string> _toShortName = _shortTypes.ToDictionary(x => x.Item2, x => x.Item1);
     private static Dictionary<string, string> _fromShortName = _shortTypes.ToDictionary(x => x.Item1, x => x.Item2);
