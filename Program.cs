@@ -275,7 +275,17 @@ public class Program
     private static List<string> GetLibraries(NoogleArgs args)
     {
         var res = new List<string>();
-        var files = args.Paths.SelectMany(p => Directory.GetFiles(p));
+        var fileNames = new HashSet<string>();
+        var files = new List<string>();
+        foreach (var path in args.Paths)
+        {
+            foreach (var filePath in Directory.GetFiles(path))
+            {
+                var fileName = Path.GetFileName(filePath);
+                if (fileNames.Add(fileName))
+                    files.Add(filePath);
+            }
+        }
         if (args.Lib != null)
         {
             foreach (var filePath in files)
